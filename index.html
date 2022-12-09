@@ -1,0 +1,191 @@
+<!DOCTYPE HTML>
+<html>
+    <head>
+        <title>HTTP for QRO.CZ</title>
+        <meta charset="utf-8" />
+    </head>
+    <body>
+        <script src="Helper.js"></script>
+        <script src="timer.js"></script>
+        <script src="common.js"></script>
+        <script>
+                $SD.on('connected', (jsonObj) => connected(jsonObj));
+
+                var btnarray = [];
+                var mycurrentStatus = [];
+
+                var oldString = "";
+                var newString = "";
+                var mytimer;
+                var isInit = false;
+                var isInitLables = false; 
+                var isTitleEnabled = true;
+
+                function updateIcons()
+                {
+                    for(let b=0; b < btnarray.length; b++)
+                    {
+                        for(let e=0; e < mycurrentStatus.length; e++)
+                        {
+                            if(mycurrentStatus[e].banknr== btnarray[b].banknr)
+                            {
+                                if(mycurrentStatus[e].asarray[btnarray[b].btnnr] == 0)
+                                    iconname = "green";
+                                else
+                                    iconname = "red";
+
+                                var json = {
+                                    "event": "setImage",
+                                    "context": btnarray[b].context,
+                                    "payload": {
+                                    "image": "resources/"+iconname,
+                                    "target": 1
+                                    }
+                                };
+                                $SD.connection.send(JSON.stringify(json));
+
+                                if(isInitLables == false)
+                                {
+                                    if(isTitleEnabled)
+                                        ttt = btnarray[b].btnlabel;
+
+                                    var jtitle = {
+                                        "event": "setTitle",
+                                        "context": btnarray[b].context,
+                                        "payload": {
+                                            "title": ttt,
+                                            "target": 0,
+                                            "state": 0
+                                        }
+                                    };
+                                    $SD.connection.send(JSON.stringify(jtitle));
+                                }
+
+                            }                                
+                        }
+                    }
+                    if(isInitLables == false)
+                        isInitLables = true;
+                }
+
+                var ignoreCounter = 0;
+
+                function getData()
+                {
+                    fetch(btnarray[0].webhookurl +"/Get")
+                        .then((response) => response.json())
+                        .then((data) => {
+                            newString = JSON.stringify(data);
+
+                            // if(isInit && ignoreCounter < 12 && oldString === newString)
+                            //     return;
+
+                            oldString = newString;
+                            ignoreCounter++;
+                            console.log(data);
+                            
+                            let keysarr = Object.keys(data);
+
+                            const banks = Object.keys(data)
+                                                .filter((key) => key.startsWith("B"))
+                                                .reduce((obj, key) => {
+                                                    return Object.assign(obj, {
+                                                    [key]: data[key]
+                                                    });
+                                            }, {});
+
+                            const len = Object.keys(banks).length;
+
+                            if(mycurrentStatus.length==0)
+                                mycurrentStatus = Array(len);
+
+                            for(let a=0; a < len; a++)
+                            {
+                                let rr = GetOrderedArraybyValue(banks["B"+a]);
+
+                                let item = {}
+                                item.banknr = a;
+                                item.value = banks["B"+a];
+                                item.oldvalue = 0;
+                                item.asarray = rr;
+
+                                mycurrentStatus[a] = item;
+                            }
+
+                            updateIcons();
+                            isInit = true;
+                        });
+                }
+
+                function connected(jsonObj) {
+                    console.log(`[connected] ${JSON.stringify(jsonObj)}`);
+                    $SD.on('cz.qro.qrohttp.action.willAppear', (jsonObj) => action.onWillAppear(jsonObj));
+                    $SD.on('cz.qro.qrohttp.action.keyUp', (jsonObj) => action.onKeyUp(jsonObj));
+                    $SD.on('cz.qro.qrohttp.action.didReceiveSettings', (jsonObj) => action.onDidReceiveSettings(jsonObj));
+                    $SD.on('cz.qro.qrohttp.action.propertyInspectorDidAppear', (jsonObj) => {});
+                    $SD.on('cz.qro.qrohttp.action.propertyInspectorDidDisappear', (jsonObj) => {});
+                    $SD.on('cz.qro.qrohttp.action.sendToPlugin', (jsonObj) => action.onSendToPlugin(jsonObj));
+                    mytimer = setInterval(getData, 5000);
+                };
+
+                const action = {
+                    onDidReceiveSettings: (jsonObj) => {
+                        console.log(`[onDidReceiveMessage] ${JSON.stringify(jsonObj)}`);
+                    },
+                    onWillAppear: (jsonObj) => {
+                        console.log(`[onWillAppear] ${JSON.stringify(jsonObj)}`);
+                        let btn = {};
+                        btn.context = jsonObj.context;
+                        btn.webhookurl = jsonObj.payload.settings.webhookurl;
+                        btn.banknr = jsonObj.payload.settings.banknr;
+                        btn.btnlabel = jsonObj.payload.settings.btnlabel;
+                        btn.btnnr = jsonObj.payload.settings.btnnr;
+
+                        let founder = 0;
+                        for(let s=0; s < btnarray.length; s++)
+                        {
+                            if(btnarray[s].banknr == btn.banknr && btnarray[s].btnnr == btn.btnnr &&  btnarray[s].btnlabel == btn.btnlabel)
+                                founder++;                            
+                        }
+
+                        if(founder == 0 || btnarray.length == 0)
+                            btnarray.push(btn);
+                        oldString = "";
+                        isInitLables = false;
+                        getData();
+                        $SD.api.sendToPropertyInspector(jsonObj.context, Utils.getProp(jsonObj, "payload.settings", {}), jsonObj.action);
+                    },
+                    onSendToPlugin: (jsonObj) => {
+                        console.log(`[onSendToPlugin] ${JSON.stringify(jsonObj)}`);
+                        if(jsonObj.payload) {
+                            $SD.api.setSettings(jsonObj.context, jsonObj.payload);
+                        }
+                    },
+                    onKeyUp: (jsonObj) => {
+                        console.log(`[onKeyUp] ${JSON.stringify(jsonObj)}`);
+                        if (!jsonObj.payload.settings || !jsonObj.payload.settings.webhookurl) {
+                            $SD.api.showAlert(jsonObj.context);
+                            return;
+                        }
+
+                        for(let x=0; x < btnarray.length; x++)
+                        {
+                            if((btnarray[x].btnnr == jsonObj.payload.settings.btnnr) && (btnarray[x].banknr == jsonObj.payload.settings.banknr))
+                            {
+                                let v = btnarray[0].webhookurl + "/Set" + btnarray[x].banknr + "/";
+                                mycurrentStatus[btnarray[x].banknr].asarray[btnarray[x].btnnr] = !mycurrentStatus[btnarray[x].banknr].asarray[btnarray[x].btnnr]; 
+                                let s = GetValueByOrderedArray(mycurrentStatus[btnarray[x].banknr].asarray);
+
+                                fetch(v+s)
+                                    .then((response) => {
+                                        getData();
+                                });
+                                
+                                break;
+                            }
+                        }
+                    }
+                };
+        </script>
+    </body>
+</html>

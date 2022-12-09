@@ -1,0 +1,41 @@
+{
+    "Actions": [
+        {
+            "Icon": "resources/actionIcon",
+            "Name": "qrohttp",
+            "States": [
+                {
+                    "Image": "resources/icon",
+                    "TitleAlignment": "bottom",
+                    "FontSize": "10"
+                }
+            ],
+            "SupportedInMultiActions": true,
+            "Tooltip": "Send http to qrocz devices",
+            "UUID": "cz.qro.qrohttp.action"
+        }
+    ],
+    "SDKVersion": 2,
+    "Author": "DM5XX",
+    "CodePath": "index.html",
+    "Description": "Send http to qrocz devices",
+    "Name": "qrohttp",
+    "Icon": "resources/icon",
+    "URL": "http://www.remoteswitch.de",
+    "PropertyInspectorPath": "propertyinspector.html",
+    "Version": "1.0",
+    "TimerInterval": 10000,
+    "OS": [
+        {
+            "Platform": "mac",
+            "MinimumVersion": "10.11"
+        },
+        {
+            "Platform": "windows",
+            "MinimumVersion": "10"
+        }
+    ],
+    "Software": {
+        "MinimumVersion" : "4.1"
+    }
+}
